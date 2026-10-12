@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// Ingested bank statement metadata (not the raw file blob).
+model Statement {
+  id                      String    @id @default(cuid())
+  /// Human-friendly archive key, e.g. APT-A1B2C3D4
+  referenceId             String?   @unique @map("reference_id") @db.VarChar(32)
+  documentHash            String?   @map("document_hash") @db.VarChar(128)
+  sourceType              String    @map("source_type") @db.VarChar(32)
+  sourceUrl               String?   @map("source_url") @db.Text
+  sourceFilename          String?   @map("source_filename") @db.VarChar(512)
+  mimeType                String?   @map("mime_type") @db.VarChar(128)
+  /// @deprecated Prefer documentHash
+  contentHash             String?   @map("content_hash") @db.VarChar(128)
+  bankName                String?   @map("bank_name") @db.VarChar(255)
+  accountName             String?   @map("account_name") @db.VarChar(255)
+  /// Optional operator-supplied owner label used for search
+  ownerName               String?   @map("owner_name") @db.VarChar(255)
+  /// Masked account number for API/storage
+  maskedAccountNumber     String?   @map("masked_account_number") @db.VarChar(64)
+  /// @deprecated Prefer maskedAccountNumber
+  accountNumber           String?   @map("account_number") @db.VarChar(64)
+  accountType             String?   @map("account_type") @db.VarChar(128)
+  currency                String?   @db.VarChar(8)
+  periodFrom              DateTime? @map("period_from")
+  periodTo                DateTime? @map("period_to")
+  /// Optional analysis window requested at upload
+  analysisFrom            DateTime? @map("analysis_from")
+  analysisTo              DateTime? @map("analysis_to")
+  /// @deprecated Prefer periodFrom/periodTo
+  statementPeriodStart    DateTime? @map("statement_period_start")
+  statementPeriodEnd      DateTime? @map("statement_period_end")
+  openingBalance          Decimal?  @map("opening_balance") @db.Decimal(18, 4)
+  closingBalance          Decimal?  @map("closing_balance") @db.Decimal(18, 4)
+  processingStatus        String    @default("COMPLETED") @map("processing_status") @db.VarChar(32)
+  extractionEngineVersion String?   @map("extraction_engine_version") @db.VarChar(32)
+  parserVersion           String?   @map("parser_version") @db.VarChar(32)
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  transactions      Transaction[]
+  extractionRuns    ExtractionRun[]
+  validationResults ValidationResult[]
+  analyses          Analysis[]
+
+  @@index([documentHash])
+  @@index([contentHash])
+  @@index([processingStatus])
+  @@index([createdAt])
+  @@index([ownerName])
+  @@index([accountName])
+  @@map("statements")
+}
+
+model Transaction {
+  id              String    @id @default(cuid())
+  statementId     String    @map("statement_id")
+  transactionDate DateTime? @map("transaction_date")
+  valueDate       DateTime? @map("value_date")
+  postingDate     DateTime? @map("posting_date")
+  description     String?   @db.Text
+  reference       String?   @db.VarChar(255)
+  debit           Decimal?  @db.Decimal(18, 4)
+  credit          Decimal?  @db.Decimal(18, 4)
+  amount          Decimal?  @db.Decimal(18, 4)
+  balance         Decimal?  @db.Decimal(18, 4)
+  currency        String?   @db.VarChar(8)
+  transactionType String?   @map("transaction_type") @db.VarChar(64)
+  confidence      Decimal?  @db.Decimal(5, 4)
+  duplicateStatus String?   @map("duplicate_status") @db.VarChar(64)
+  fingerprint     String?   @db.VarChar(128)
+  rawJson         Json?     @map("raw_json")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  statement Statement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@index([statementId])
+  @@index([fingerprint])
+  @@index([transactionDate])
+  @@index([reference])
+  @@index([amount])
+  @@index([transactionType])
+  @@map("transactions")
+}
+
+/// Underwriting analysis snapshot, keyed by reference_id for search/render.
+model Analysis {
+  id               String    @id @default(cuid())
+  statementId      String    @map("statement_id")
+  referenceId      String    @unique @map("reference_id") @db.VarChar(32)
+  ownerName        String?   @map("owner_name") @db.VarChar(255)
+  accountName      String?   @map("account_name") @db.VarChar(255)
+  bankName         String?   @map("bank_name") @db.VarChar(255)
+  accountNumber    String?   @map("account_number") @db.VarChar(64)
+  score            Int?
+  scoreBand        String?   @map("score_band") @db.VarChar(32)
+  recommendation   String?   @db.VarChar(64)
+  periodFrom       DateTime? @map("period_from")
+  periodTo         DateTime? @map("period_to")
+  analysisFrom     DateTime? @map("analysis_from")
+  analysisTo       DateTime? @map("analysis_to")
+  scopedTxCount    Int?      @map("scoped_tx_count")
+  fullTxCount      Int?      @map("full_tx_count")
+  source           String?   @db.VarChar(32)
+  filename         String?   @db.VarChar(512)
+  runId            String?   @map("run_id") @db.VarChar(64)
+  /// Full analytics object (scorecard, cashflow, flags, …)
+  analysisJson     Json      @map("analysis_json")
+  /// Public API payload used to render the frontend report
+  publicResultJson Json      @map("public_result_json")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  statement Statement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@index([ownerName])
+  @@index([accountName])
+  @@index([createdAt])
+  @@index([statementId])
+  @@map("analyses")
+}
+
+model ExtractionRun {
+  id               String    @id @default(cuid())
+  statementId      String?   @map("statement_id")
+  runId            String?   @unique @map("run_id") @db.VarChar(64)
+  status           String    @db.VarChar(32)
+  sourceType       String    @map("source_type") @db.VarChar(32)
+  inputHash        String?   @map("input_hash") @db.VarChar(128)
+  extractionMethod String?   @map("extraction_method") @db.VarChar(64)
+  parser           String?   @db.VarChar(64)
+  ocrUsed          Boolean   @default(false) @map("ocr_used")
+  processingTimeMs Int?      @map("processing_time_ms")
+  pageCount        Int?      @map("page_count")
+  success          Boolean   @default(false)
+  errorCode        String?   @map("error_code") @db.VarChar(64)
+  errorMessage     String?   @map("error_message") @db.Text
+  confidence       Decimal?  @db.Decimal(5, 4)
+  transactionCount Int?      @map("transaction_count")
+  engineVersion    String?   @map("engine_version") @db.VarChar(32)
+  startedAt        DateTime  @default(now()) @map("started_at")
+  finishedAt       DateTime? @map("finished_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  resultJson       Json?     @map("result_json")
+
+  statement         Statement?         @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  validationResults ValidationResult[]
+
+  @@index([statementId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([createdAt])
+  @@map("extraction_runs")
+}
+
+model ValidationResult {
+  id                       String   @id @default(cuid())
+  statementId              String?  @map("statement_id")
+  extractionRunId          String   @map("extraction_run_id")
+  reconciled               Boolean  @default(false)
+  calculatedClosingBalance Decimal? @map("calculated_closing_balance") @db.Decimal(18, 4)
+  statementClosingBalance  Decimal? @map("statement_closing_balance") @db.Decimal(18, 4)
+  difference               Decimal? @db.Decimal(18, 4)
+  validationStatus         String   @map("validation_status") @db.VarChar(64)
+  isValid                  Boolean  @map("is_valid")
+  warningsJson             Json?    @map("warnings_json")
+  issuesJson               Json     @map("issues_json")
+  createdAt                DateTime @default(now()) @map("created_at")
+  checkedAt                DateTime @default(now()) @map("checked_at")
+
+  statement     Statement?    @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  extractionRun ExtractionRun @relation(fields: [extractionRunId], references: [id], onDelete: Cascade)
+
+  @@index([statementId])
+  @@index([extractionRunId])
+  @@map("validation_results")
+}

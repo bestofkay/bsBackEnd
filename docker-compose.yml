@@ -1,0 +1,60 @@
+services:
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mysql://bsapp:bsapp@db:3306/bs_app
+      API_KEYS: change-me-in-production
+      WEB_USERS: '[{"email":"demo@statement.local","password":"demo1234","name":"Demo Analyst"}]'
+      CORS_ORIGINS: ""
+      LOG_LEVEL: info
+      MAX_UPLOAD_BYTES: "26214400"
+      MAX_DOWNLOAD_BYTES: "26214400"
+      MAX_PDF_PAGES: "200"
+      MAX_CONCURRENT_DOCUMENTS: "2"
+      MAX_PROCESSING_TIME_MS: "180000"
+      UPLOAD_DIR: /app/uploads
+      RETAIN_TEMP_FILES: "false"
+      TRUST_PROXY: "true"
+    volumes:
+      - uploads_data:/app/uploads
+      - web_users_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: bs_app
+      MYSQL_USER: bsapp
+      MYSQL_PASSWORD: bsapp
+      MYSQL_ROOT_PASSWORD: rootpass
+    ports:
+      - "3306:3306"
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 25s
+
+volumes:
+  mysql_data:
+  uploads_data:
+  web_users_data:

@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bs-app.local/schemas/extraction-response.json",
+  "title": "BankStatementExtractionSuccessResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["success", "statement", "transactions", "summary", "validation", "quality"],
+  "properties": {
+    "success": { "const": true },
+    "statement": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["currency", "opening_balance", "closing_balance"],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "bank_name": { "type": ["string", "null"] },
+        "account_name": { "type": ["string", "null"] },
+        "account_number": { "type": ["string", "null"] },
+        "account_type": { "type": ["string", "null"] },
+        "currency": { "type": ["string", "null"] },
+        "statement_period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from", "to"],
+          "properties": {
+            "from": { "type": ["string", "null"], "format": "date" },
+            "to": { "type": ["string", "null"], "format": "date" }
+          }
+        },
+        "opening_balance": { "type": ["number", "null"] },
+        "closing_balance": { "type": ["number", "null"] }
+      }
+    },
+    "transactions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/transaction" }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["transaction_count"],
+      "properties": {
+        "transaction_count": { "type": "integer", "minimum": 0 },
+        "total_debits": { "type": ["number", "null"] },
+        "total_credits": { "type": ["number", "null"] },
+        "debit_total": { "type": ["number", "null"] },
+        "credit_total": { "type": ["number", "null"] },
+        "currency": { "type": ["string", "null"] },
+        "period_start": { "type": ["string", "null"] },
+        "period_end": { "type": ["string", "null"] }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "reconciled": { "type": "boolean" },
+        "calculated_closing_balance": { "type": ["number", "null"] },
+        "statement_closing_balance": { "type": ["number", "null"] },
+        "difference": { "type": ["number", "null"] },
+        "reconciliation_status": {
+          "type": "string",
+          "enum": ["RECONCILED", "MISMATCH", "NOT_DETERMINABLE"]
+        },
+        "is_valid": { "type": "boolean" },
+        "issues": { "type": "array" }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["confidence", "transactions_requiring_review", "warnings"],
+      "properties": {
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "transactions_requiring_review": { "type": "integer", "minimum": 0 },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "transaction_index": { "type": ["integer", "null"] },
+              "details": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "reconciliation": { "type": "object" },
+    "analysis": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Post-extraction statement analytics (cashflow, categories, risk flags, score)."
+    },
+    "warnings": { "type": "array" },
+    "run_id": { "type": ["string", "null"] },
+    "statement_id": { "type": ["string", "null"] },
+    "idempotent_replay": { "type": "boolean" },
+    "access_token": { "type": ["string", "null"] },
+    "reference_id": { "type": ["string", "null"] },
+    "owner_name": { "type": ["string", "null"] },
+    "analysis_period": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": ["string", "null"] },
+        "to": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "$defs": {
+    "transaction": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "transaction_date",
+        "description",
+        "amount",
+        "currency",
+        "transaction_type"
+      ],
+      "properties": {
+        "transaction_date": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "value_date": { "type": ["string", "null"], "format": "date" },
+        "posting_date": { "type": ["string", "null"], "format": "date" },
+        "description": { "type": ["string", "null"] },
+        "reference": { "type": ["string", "null"] },
+        "debit": { "type": ["number", "null"] },
+        "credit": { "type": ["number", "null"] },
+        "amount": { "type": ["number", "null"] },
+        "balance": { "type": ["number", "null"] },
+        "currency": { "type": ["string", "null"] },
+        "transaction_type": {
+          "type": ["string", "null"],
+          "enum": [
+            "TRANSFER",
+            "CASH_WITHDRAWAL",
+            "CASH_DEPOSIT",
+            "POS",
+            "ATM",
+            "CARD_PAYMENT",
+            "BANK_CHARGE",
+            "INTEREST",
+            "SALARY",
+            "DIRECT_DEBIT",
+            "DIRECT_CREDIT",
+            "REFUND",
+            "REVERSAL",
+            "CHEQUE",
+            "MOBILE_PAYMENT",
+            "ONLINE_PAYMENT",
+            "OTHER",
+            "UNKNOWN",
+            null
+          ]
+        },
+        "duplicate_suspected": { "type": "boolean" },
+        "duplicate_group_id": { "type": ["string", "null"] },
+        "confidence": { "type": ["number", "null"] }
+      }
+    }
+  }
+}
