@@ -29,18 +29,26 @@ export function createApp(): Express {
     helmet({
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
+      // Allow a separately hosted frontend to read API responses.
+      crossOriginResourcePolicy: config.crossOriginUi
+        ? { policy: "cross-origin" }
+        : { policy: "same-origin" },
     }),
   );
 
-  const corsOrigins = config.corsOrigins;
+  const corsOrigins = config.corsOrigins.map((o) => o.replace(/\/$/, ""));
   const corsCredentials = config.crossOriginUi;
+  if (corsOrigins.length > 0) {
+    logger.info({ corsOrigins, credentials: corsCredentials }, "CORS allowlist active");
+  }
   app.use(
     cors({
       origin:
         corsOrigins.length > 0
           ? (origin, cb) => {
               // Allow non-browser clients (no Origin) and configured frontend origins.
-              if (!origin || corsOrigins.includes(origin)) cb(null, true);
+              const normalized = (origin || "").replace(/\/$/, "");
+              if (!origin || corsOrigins.includes(normalized)) cb(null, true);
               else cb(new Error("CORS origin denied"));
             }
           : config.nodeEnv === "production"
